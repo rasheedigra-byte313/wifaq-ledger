@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ur" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>وفاق الجامعات العربیہ - دفتری کھاتہ</title>
+    <style>
+        :root {
+            --primary-color: #059669; /* Emerald Green */
+            --bg-color: #f3f4f6;
+            --text-color: #1f2937;
+            --income-color: #10b981;
+            --expense-color: #ef4444;
+        }
+        body {
+            font-family: 'Jameel Noori Nastaleeq', 'Nafees Web Naskh', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 20px;
+        }
+        .balance-card {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .balance-card h2 { margin: 0; font-size: 1.2rem; }
+        .balance-card h3 { margin: 10px 0 0 0; font-size: 2rem; }
+        
+        form { display: flex; flex-direction: column; gap: 15px; }
+        input, select, button {
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-family: inherit;
+        }
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover { background-color: #047857; }
+        
+        .transactions { margin-top: 30px; }
+        .transaction-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f9fafb;
+            padding: 15px;
+            border-bottom: 1px solid #e5e7eb;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        .income { color: var(--income-color); font-weight: bold; }
+        .expense { color: var(--expense-color); font-weight: bold; }
+        .details p { margin: 5px 0; }
+        .date { font-size: 0.8rem; color: #6b7280; }
+        .delete-btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>وفاق الجامعات العربیہ (دفتری کھاتہ)</h1>
+    
+    <div class="balance-card">
+        <h2>موجودہ بیلنس</h2>
+        <h3 id="totalBalance">0 روپے</h3>
+    </div>
+
+    <form id="ledgerForm">
+        <input type="number" id="amount" placeholder="رقم درج کریں (مثلاً: 5000)" required>
+        <select id="type">
+            <option value="income">آمدنی (دفتر سے ملے)</option>
+            <option value="expense">خرچ (سامان لیا)</option>
+        </select>
+        <input type="text" id="description" placeholder="تفصیل لکھیں (مثلاً: سٹیشنری خریدی)" required>
+        <button type="submit">محفوظ کریں</button>
+    </form>
+
+    <div class="transactions">
+        <h3 style="color: var(--primary-color);">حالیہ لین دین</h3>
+        <div id="transactionList">
+            <!-- Transactions will appear here -->
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    // Firebase SDKs
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    // Your Firebase Config
+    const firebaseConfig = {
+      apiKey: "AIzaSyDQYQiXQETT27EEervcnOp7HLzqTAJ710k",
+      authDomain: "wifaq-46553.firebaseapp.com",
+      projectId: "wifaq-46553",
+      storageBucket: "wifaq-46553.firebasestorage.app",
+      messagingSenderId: "913709884789",
+      appId: "1:913709884789:web:d3f07104dc2ac3e1675f3c"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const ledgerCollection = collection(db, "ledger");
+
+    const ledgerForm = document.getElementById("ledgerForm");
+    const transactionList = document.getElementById("transactionList");
+    const totalBalanceEl = document.getElementById("totalBalance");
+
+    // Add new transaction
+    ledgerForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const amount = Number(document.getElementById("amount").value);
+        const type = document.getElementById("type").value;
+        const description = document.getElementById("description").value;
+        const date = new Date().toISOString();
+
+        await addDoc(ledgerCollection, {
+            amount: amount,
+            type: type,
+            description: description,
+            date: date
+        });
+
+        ledgerForm.reset();
+    });
+
+    // Delete transaction
+    window.deleteTransaction = async (id) => {
+        if(confirm("کیا آپ واقعی یہ انٹری ڈیلیٹ کرنا چاہتے ہیں؟")) {
+            await deleteDoc(doc(db, "ledger", id));
+        }
+    };
+
+    // Fetch and display data in real-time
+    const q = query(ledgerCollection, orderBy("date", "desc"));
+    onSnapshot(q, (snapshot) => {
+        let balance = 0;
+        transactionList.innerHTML = "";
+
+        snapshot.forEach((documentSnapshot) => {
+            const data = documentSnapshot.data();
+            const id = documentSnapshot.id;
+            
+            // Calculate balance
+            if(data.type === "income") {
+                balance += data.amount;
+            } else {
+                balance -= data.amount;
+            }
+
+            // Format date
+            const dateObj = new Date(data.date
